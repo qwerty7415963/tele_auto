@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telegram Login</title>
+  </head>
+  <body>
+    <h1>Telegram Login</h1>
+    <form id="loginForm">
+      <label for="phoneNumber">Phone Number:</label>
+      <input
+        type="text"
+        id="phoneNumber"
+        name="phoneNumber"
+        required
+      /><br /><br />
+      <label for="password">Password:</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        required
+      /><br /><br />
+      <label for="phoneCode">Phone Code:</label>
+      <input type="text" id="phoneCode" name="phoneCode" required /><br /><br />
+      <button type="submit">Login</button>
+    </form>
+    <script>
+      document
+        .getElementById('loginForm')
+        .addEventListener('submit', async function (event) {
+          event.preventDefault()
+          const phoneNumber = document.getElementById('phoneNumber').value
+          const password = document.getElementById('password').value
+          const phoneCode = document.getElementById('phoneCode').value
+
+          const response = await fetch('/auth', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ phoneNumber, password, phoneCode }),
+          })
+
+          const result = await response.json()
+          alert(result.message)
+        })
+    </script>
+  </body>
+</html>
