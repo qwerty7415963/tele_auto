@@ -23,6 +23,7 @@
     "express": "^4.21.2",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
+    "qrcode": "^1.5.4",
     "selenium-webdriver": "^4.27.0",
     "telegram": "^2.26.16"
   }

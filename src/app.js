@@ -4,7 +4,7 @@ import morgan from 'morgan'
 import dotenv from 'dotenv'
 import { loadRoutes } from './utils/load-routes.js'
 import bodyParser from 'body-parser'
-
+// import { initializeClient } from './routes/news/handler/send-tele-msg.js'
 class App {
   constructor() {
     dotenv.config()
@@ -14,6 +14,7 @@ class App {
     this.setupErrorHandling()
     this.initializeRoutes()
     this.app.use(bodyParser.json())
+    // this.initializeClient()
   }
 
   setupMiddleware() {

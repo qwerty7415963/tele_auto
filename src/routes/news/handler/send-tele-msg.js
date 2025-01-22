@@ -1,108 +1,115 @@
 import { TelegramClient, Api } from 'telegram'
 import { StringSession } from 'telegram/sessions/index.js'
-import { sessionFilePath } from '../../../utils/tele-session.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import {
+  saveSession,
+  loadSession,
+  sessionFilePath,
+} from '../../../utils/tele-session.js'
+import QRCode from 'qrcode'
 
-let phoneCodeHashStorage = ''
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
-const handleSendCode = async (req, res) => {
-  const apiId = Number(process.env.TELEGRAM_API_ID)
-  const apiHash = process.env.TELEGRAM_API_HASH
-  const stringSession = new StringSession('') // Fill this later with the value from session.save()
-  const client = new TelegramClient(stringSession, apiId, apiHash, {
-    connectionRetries: 1,
-  })
+const apiId = Number(process.env.TELEGRAM_API_ID) // Ensure apiId is a number
+const apiHash = process.env.TELEGRAM_API_HASH
+const stringSession = new StringSession('') // Fill this later with the value from session.save()
 
-  try {
-    const { phoneNumber } = req.body
-    console.log('Received phoneNumber:', phoneNumber, typeof phoneNumber)
-    if (!phoneNumber) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Phone number is required' })
-    }
+let currentQRToken = null
 
-    await client.connect()
-    const { phoneCodeHash } = await client.invoke(
-      new Api.auth.SendCode({
-        phoneNumber: '+84342943153',
-        apiId,
-        apiHash,
-        settings: new Api.CodeSettings({
-          allowFlashcall: true,
-          currentNumber: true,
-          allowAppHash: true,
-          allowMissedCall: true,
-          logoutTokens: [Buffer.from('arbitrary data here')],
-        }),
-      }),
-    )
-    phoneCodeHashStorage = phoneCodeHash
-    console.log('phoneCodeHash:', phoneCodeHash)
-    res.json({ success: true, message: 'Code sent to phone number.' })
-  } catch (error) {
-    console.error('Error sending code:', error)
-    res.status(500).json({ success: false, message: 'Error sending code.' })
-  } finally {
-    await client.disconnect()
-  }
+const client = new TelegramClient(new StringSession(''), apiId, apiHash, {
+  connectionRetries: 5,
+})
+await client.connect()
+
+const handleGenerateQRCode = async (req, res) => {
+  const result = await client.invoke(
+    new Api.auth.ExportLoginToken({
+      apiId: apiId,
+      apiHash: apiHash,
+      exceptIds: [],
+    }),
+  )
+  const url = `tg://login?token=${result.token.toString('base64')}`
+  const qrCodeUrl = await QRCode.toDataURL(url)
+
+  return qrCodeUrl
 }
 
-const handleTelegramLogin = async (req, res) => {
-  const { phoneNumber, password, phoneCode } = req.body
-  console.log('Received phoneNumber:', phoneNumber) // Log the phoneNumber to debug
-  console.log('Received phoneCodeHash:', phoneCodeHashStorage) // Log the phoneCode to debug
-  console.log('Received phoneCode:', phoneCode) // Log the phoneCode to debug
-  if (!phoneNumber || !phoneCode) {
-    return res.status(400).json({
-      success: false,
-      message: 'Phone number and phone code is required',
-    })
-  }
-  const apiId = Number(process.env.TELEGRAM_API_ID)
+const handleQRCodeLogin = async (req, res) => {
+  const { token } = req.body
+  const apiId = Number(process.env.TELEGRAM_API_ID) // Ensure apiId is a number
   const apiHash = process.env.TELEGRAM_API_HASH
-  const stringSession = new StringSession('') // Fill this later with the value from session.save()
+  let stringSession = new StringSession('') // Fill this later with the value from session.save()
+
+  // Load session from file if it exists
+  if (fs.existsSync(sessionFilePath)) {
+    const savedSession = fs.readFileSync(sessionFilePath, 'utf8')
+    stringSession = new StringSession(savedSession)
+  }
 
   const client = new TelegramClient(stringSession, apiId, apiHash, {
-    connectionRetries: 1,
+    connectionRetries: 5,
   })
 
   try {
     await client.connect()
     const result = await client.invoke(
-      new Api.auth.SignIn({
-        phoneNumber,
-        phoneCodeHash: phoneCodeHashStorage,
-        phoneCode,
+      new Api.auth.ImportLoginToken({
+        token: Buffer.from(token, 'base64'),
       }),
     )
 
-    console.log(result) // prints the result
-
+    console.log('Login result:', result)
     const sessionString = client.session.save()
     console.log(sessionString) // Save this string to avoid logging in again
 
     // Save session to file
-    fs.writeFileSync(sessionFilePath, sessionString)
+    saveSession(client.session)
 
     res.json({ message: 'Login successful' })
   } catch (error) {
+    console.error('Error during QR code login:', error)
     res.status(500).json({ message: 'Login failed' })
   } finally {
     await client.disconnect()
   }
 }
 
-const sendToTelegram = async events => {
-  const message = events
-    .map(
-      event =>
-        `Event: ${event.event}\nActual: ${event.actual}\nForecast: ${event.forecast}`,
-    )
-    .join('\n\n')
+// Handle login token updates
+client.addEventHandler(async update => {
+  console.log(update)
+  if (update?.className === 'UpdateLoginToken') {
+    try {
+      const result = await client.invoke(
+        new Api.auth.ExportLoginToken({
+          apiId: apiId,
+          apiHash: apiHash,
+          exceptIds: [],
+        }),
+      )
 
-  await client.sendMessage('me', { message })
+      if (result.className === 'auth.LoginTokenSuccess') {
+        const user = await client.getMe()
+        console.log('Login successful:', user)
+      } else if (result.className === 'auth.LoginTokenMigrateTo') {
+        const importResult = await client.invoke({
+          _: 'auth.importLoginToken',
+          token: result.token,
+        })
 
-  await client.disconnect()
-}
+        if (importResult.className === 'auth.LoginTokenSuccess') {
+          const user = await client.getMe()
+          console.log('Login successful after migration:', user)
+        }
+      }
+    } catch (error) {
+      console.error('Login token update error:', error)
+    }
+  }
+})
 
-export { handleSendCode, handleTelegramLogin, sendToTelegram }
+export { handleGenerateQRCode, handleQRCodeLogin }
