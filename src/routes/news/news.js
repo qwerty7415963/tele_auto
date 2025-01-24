@@ -1,7 +1,11 @@
 import express from 'express'
 import 'chromedriver'
 import { getForexFactoryData } from './handler/get-forex-data.js'
-import { handleTelegramLogin, handleSendCode } from './handler/send-tele-msg.js'
+import {
+  handleVerifyCode,
+  handleSendCode,
+  initializeClient,
+} from './handler/auth-tele.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { loadSession } from '../../utils/tele-session.js'
@@ -19,8 +23,9 @@ class NewRoutes {
 
   initializeRoutes() {
     this.router.get('/', this.serveAuthPage)
-    this.router.post('/sendCode', this.sendCode)
-    this.router.post('/authTelegram', this.authTelegram)
+    this.router.post('/send-code', this.sendCode)
+    this.router.post('/verify-code', this.verifyCode)
+    this.router.post('/submit-password', this.submitPassword)
     this.router.get('/updateForexNews', this.updateForexNews)
   }
 
@@ -28,8 +33,9 @@ class NewRoutes {
     try {
       const session = loadSession()
       if (session !== '') {
+        const user = await initializeClient(session)
         res.send({
-          message: session,
+          user: user.username,
         })
       } else {
         res.sendFile(path.join(__dirname, './UI/auth.html'))
@@ -44,8 +50,14 @@ class NewRoutes {
     await handleSendCode(req, res)
   }
 
-  async authTelegram(req, res) {
-    await handleTelegramLogin(req, res)
+  async verifyCode(req, res) {
+    console.log('verifyCode')
+    await handleVerifyCode(req, res)
+  }
+
+  async submitPassword(req, res) {
+    console.log('verifyCode')
+    await handleSubmitPassword(req, res)
   }
 
   async updateForexNews(req, res) {

